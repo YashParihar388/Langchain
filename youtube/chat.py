@@ -6,6 +6,8 @@ from langchain_community.vectorstores import FAISS
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.prompts import PromptTemplate
 import os
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnableParallel,RunnableLambda , RunnablePassthrough
 
 load_dotenv()
 
@@ -45,15 +47,33 @@ prompt = PromptTemplate(
 retriever = vector_store.as_retriever(search_type="similarity", search_kwargs={"k": 4})
 
 
-question = 'is tcs nqt easy?'
-documents = retriever.invoke(question)
+# question = 'is tcs nqt easy?'
+# documents = retriever.invoke(question)
 
-context_text = "/n/n".join(doc.page_content for doc in documents)
+# context_text = "/n/n".join(doc.page_content for doc in documents)
 
-final_prompt = prompt.invoke({"context":context_text,"question":question})
+# final_prompt = prompt.invoke({"context":context_text,"question":question})
 
 llm = ChatGroq(model='openai/gpt-oss-120b',api_key=os.getenv("GROK_KEY"))
 
-result = llm.invoke(final_prompt)
+# result = llm.invoke(final_prompt)
 
-print(result.content)
+# print(result.content)
+
+
+def format(documents):
+    text = "\n\n".join(doc.page_content for doc in documents)
+    return text
+
+parallel_chain = RunnableParallel({
+    'context': retriever | RunnableLambda(format),
+    'question': RunnablePassthrough()
+})
+
+parser = StrOutputParser()
+
+main_chain = parallel_chain | prompt | llm | parser 
+
+result = main_chain.invoke('can you summarize this?')
+
+print(result)
